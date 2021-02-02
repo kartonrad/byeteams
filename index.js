@@ -165,7 +165,7 @@ function logTime(time, msg) {
     chalk`{green ${  hours?hours.toString().padStart(2," ") +"h":"..."}} ` +
     chalk`{yellow ${   mins?mins.toString().padStart(2," ") +"m":"..."}} ` + 
     chalk`{red ${      secs?secs.toString().padStart(2," ") +"s":"..."}} ` +
-    chalk`{magenta ${milis?milis.toString().padStart(3," ") +"ms":"....."}}`
+    chalk`{magenta ${milis.toString().padStart(3," ") +"ms"}}`
     )
 }
 
@@ -174,6 +174,7 @@ function humanDuration(time) {
     var [hours, carry] = extractTimeUnit(carry, 3600000);
     var [mins, carry] = extractTimeUnit(carry, 60000);
     var [secs, carry] = extractTimeUnit(carry, 1000);
+    console.log(carry);
 
     var duration = {days, hours, mins, secs, milis: carry};
     return duration;
