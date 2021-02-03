@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-
+const Jimp = require('jimp');
 const robot = require("robotjs");
 const {exec} = require("child_process");
 const chalk = require("chalk");
@@ -8,6 +8,7 @@ const putToSleep = process.argv[3] === "sleep"
 const readline = require('readline');
 var exitingGOODBYE = false;
 
+const fs = require("fs");
 
 //GREETING
 console.log(chalk.blueBright(`
@@ -58,12 +59,13 @@ waitInMs = Math.round(waitInMs);
 console.log(chalk`{yellow ----------SETUP---------}
 {bold ByeTeams®} will now:`);
 logTime(waitInMs, chalk`{grey 1.} Wait for `);
-console.log(chalk`{grey 2.} Automatically left-Click to leave the Meeting \n    {grey (Remember to hover over the {white.bgRed.bold 📞LEAVE} Button)}`);
+console.log(chalk`{grey 2.} Save a screenshot (of the main monitor), so you can see if the bot left too late/early
+{grey 3.} Automatically left-Click to leave the Meeting \n    {grey (Remember to hover over the {white.bgRed.bold 📞LEAVE} Button)}`);
 if(putToSleep) {
-    console.log(chalk`{grey 3.} Find and {red.italic kill} Teams.exe
-{grey 4.} Put your PC to sleep 💤`);
+    console.log(chalk`{grey 4.} Find and {red.italic kill} Teams.exe
+{grey 5.} Put your PC to sleep 💤`);
 }
-console.log(chalk`{grey ${putToSleep?5:3}.} aaaand that's it!
+console.log(chalk`{grey ${putToSleep?6:4}.} aaaand that's it!
 `)
 
 //ASK CONFIRM
@@ -94,6 +96,14 @@ function run() {
         process.stdout.write("\x1b[F");
         console.log(chalk`{grey [WAITING]}`);
 
+        var bmp = robot.screen.capture();
+
+        new Jimp({data: bmp.image, width: bmp.width,height:  bmp.height, }, (err, image) => {
+            var path = `./byeteams${Date.now()}.png`;
+            console.log(chalk`{blueBright [CAPTURE]} saving a low-quality screenshot at `+process.cwd()+path)
+            image.write(path);
+        });
+
         process.stdout.write(chalk`{red [LEAVING]} clicking...`)
         robot.mouseClick("left");
         console.log(chalk.green("done!"))
@@ -109,8 +119,11 @@ function run() {
             await sleep(b);
             exitingGOODBYE = true
             console.log(chalk`{yellow [GOODBYE]} waking up again! so exicted! \n hope this worked\n if not tweet at me ({blueBright @darksilvian}) or open an issue`)
+            return;
         }
-        
+
+        exitingGOODBYE = true
+        console.log(chalk`{yellow [GOODBYE]} hope this worked\n if not tweet at me ({blueBright @darksilvian}) or open an issue`)
     }, waitInMs);
 
     //LOG PROGRESS
