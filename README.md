@@ -4,7 +4,7 @@ a small, way to colored cli script to leave teams after a certain time
 ## installation
 1. Download and install Node.js 
 (link: https://nodejs.org/en/download/)
-2. run `npm install -g DRKSLV/byeteams' to download/install the script`
+2. run `npm install -g DRKSLV/byeteams` in a terminal to download/install the script
 3. to execute the script run `byeteams <...>` or if that doesnt work, `npx byeteams <...>`
 
 ## note!!!!!!
