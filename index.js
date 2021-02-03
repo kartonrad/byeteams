@@ -98,9 +98,9 @@ function run() {
 
         var bmp = robot.screen.capture();
 
+        var path = `./byeteams${Date.now()}.png`;
+        console.log(chalk`{blueBright [CAPTURE]} saving a low-quality screenshot at `+process.cwd()+path)
         new Jimp({data: bmp.image, width: bmp.width,height:  bmp.height, }, (err, image) => {
-            var path = `./byeteams${Date.now()}.png`;
-            console.log(chalk`{blueBright [CAPTURE]} saving a low-quality screenshot at `+process.cwd()+path)
             image.write(path);
         });
 
