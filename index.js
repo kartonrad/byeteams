@@ -174,8 +174,6 @@ function humanDuration(time) {
     var [hours, carry] = extractTimeUnit(carry, 3600000);
     var [mins, carry] = extractTimeUnit(carry, 60000);
     var [secs, carry] = extractTimeUnit(carry, 1000);
-    console.log(carry);
-
     var duration = {days, hours, mins, secs, milis: carry};
     return duration;
 }
