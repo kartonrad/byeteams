@@ -141,7 +141,7 @@ function sleep(b) {
 
             //platform specific commands
             var cmd;
-            if(process.platform === "win32") cmd = 'echo bruh' //taskkill /t /IM teams.exe /f & rundll32.exe powrprof.dll,SetSuspendState 0,1,0;';
+            if(process.platform === "win32") cmd = 'taskkill /t /IM teams.exe /f & rundll32.exe powrprof.dll,SetSuspendState 0,1,0;';
             else if (process.platform === "darwin") cmd = 'killall Teams; killall teams; pmset sleepnow;'
             else cmd = 'killall Teams; killall teams; systemctl suspend;';
 
