@@ -11,6 +11,7 @@ function eventFire(el, etype){
     }
 }
 
+//NEWNEW
 function evalRecord(record) {
     if(record.attributeName === "class") {
         if(record.target.class.includes("avatar")) {
@@ -47,10 +48,13 @@ function evalRecord(record) {
         return participantIcons(target);
     }
 }
+//NEWNEW
 
 var socket = new WebSocket(wsUrl)
 socket.onopen = function main () {
     function send(data) { socket.send(JSON.stringify(data))}
+
+    //NEWNEW
     var memberObserver, listObserver;
 
     //for live updates
@@ -71,7 +75,7 @@ socket.onopen = function main () {
                 var e = evalRecord(record);
                 if(!e) return;
 
-                return {event: e, participant: findObserver(record.target)}
+                return {event: e, participant: findObserver(record.target)} // todo extract participant id, name from element
             }).flat(1);
 
             //send off events
@@ -81,6 +85,7 @@ socket.onopen = function main () {
         const memberEntries = document.querySelectorAll("[data-cid=roster-participant]");
         memberEntries.forEach((e) => memberObserver.observe(e, {attributes: true, attributeFilter: ["data-cid", "data-tid", "class"], subtree: true}));
     }
+    //NEWNEW
 
     initiateObservers();
     feedObservers()
@@ -101,6 +106,7 @@ socket.onopen = function main () {
     function mute() { clickLabeledButton("#microphone-button", "Mute") }
     function unmute() { clickLabeledButton("#microphone-button", "Unmute") }
 
+    //NEWNEW
     function writeMessage(string) {
         openChat();
         var input = document.querySelector(sel);
@@ -111,7 +117,7 @@ socket.onopen = function main () {
         var keystroke = new KeyboardEvent("keydown", {key: "Enter"});
         input.dispatchEvent(keystroke);
     }
-
+    //NEWNEW
     
 
     const f = {openChat, openMembers, raise, unraise, mute, unmute, writeMessage}
