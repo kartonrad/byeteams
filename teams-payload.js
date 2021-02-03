@@ -59,6 +59,7 @@ socket.onopen = function main () {
 
     //for live updates
     function initiateObservers() {
+        //TODO parse entire participant structure into initial state, handle additions/removals from the list
         const memberEntries = document.querySelectorAll("[data-cid=roster-participant]")
 
         function findObserver(target) {
@@ -87,8 +88,8 @@ socket.onopen = function main () {
     }
     //NEWNEW
 
-    initiateObservers();
-    feedObservers()
+    //initiateObservers();
+    //feedObservers()
 
 
     function clickLabeledButton(sel, inc) {
