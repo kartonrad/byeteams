@@ -90,18 +90,21 @@ function run() {
 
     //WAITING TO CLICK
     setTimeout(async () => {
+        clearInterval(int);
+        process.stdout.write("\x1b[F");
+        console.log(chalk`{grey [WAITING]}`);
+
         process.stdout.write(chalk`{red [LEAVING]} clicking...`)
         robot.mouseClick("left");
         console.log(chalk.green("done!"))
-        clearInterval(int);
         
         if(putToSleep) {
-            console.log(chalk`{grey [WAITING]} sleeping+killing in 10 seconds`);
+            console.log(chalk`{rgb(255,156,0) [WAITING]} sleeping+killing in 10 seconds`);
             var cnt = 10;
             var b = setInterval(() => {
                 process.stdout.write("\x1b[F\x1b[2K");
                 cnt-=1;
-                console.log(chalk`{grey [WAITING]} sleeping+killing in ${cnt} seconds`);
+                console.log(chalk`{rgb(255,156,0) [WAITING]} sleeping+killing in ${cnt} seconds`);
             }, 1000)
             await sleep(b);
             exitingGOODBYE = true
@@ -138,7 +141,7 @@ function sleep(b) {
 
             //platform specific commands
             var cmd;
-            if(process.platform === "win32") cmd = 'taskkill /t /IM teams.exe /f & rundll32.exe powrprof.dll,SetSuspendState 0,1,0;';
+            if(process.platform === "win32") cmd = 'echo bruh' //taskkill /t /IM teams.exe /f & rundll32.exe powrprof.dll,SetSuspendState 0,1,0;';
             else if (process.platform === "darwin") cmd = 'killall Teams; killall teams; pmset sleepnow;'
             else cmd = 'killall Teams; killall teams; systemctl suspend;';
 
