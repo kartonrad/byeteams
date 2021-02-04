@@ -8,8 +8,9 @@ const { EventEmitter } = require("events");
 
 async function main (port) {
     var windows = await getWindows(port);
+    //console.log(windows);
     
-    var dbs = windows.filter((w) => (w.title.startsWith("Call with ") || w.title.startsWith("Meet") || w.title.startsWith("Room")) && w.type === "page" )
+    var dbs = windows.filter((w) => (w.url === "about:blank?entityType=calls") && w.type === "page" )
     .map((json, idx) => new MSTeamsCallPage(json, idx))
     .forEach(async (cp) => {      
         await cp.waitToOpen();
@@ -30,6 +31,8 @@ class MSTeamsCallPage {
     debugSocket;
     comSocket;
     comOpen=true;
+    raisedHands = 0;
+    memberCount = 0;
     dbJson;
     messageEvents = new EventEmitter();
     msgCount=0;
@@ -43,6 +46,8 @@ class MSTeamsCallPage {
         this.socketId = id;
         this.comOpen = false;
         this.members = [];
+        this.raisedHands = 0;
+        this.memberCount = 0;
         this.comSocket = new ws.Server({ port: 12400 + id})
         this.comSocket.on("connection", (socket) => {
             this.messageEvents.emit("clientOpen")
@@ -83,15 +88,31 @@ class MSTeamsCallPage {
         switch(jmsg.event) {
             case "fullMemberScan":
                 this.members = {};
+                this.memberCount = 0;
+                this.raisedHands = 0;
+
                 jmsg.list.forEach((member) => {
                     this.members[member.userId] = member;
+
+                    if(member.role !=='participantsFromThread') this.memberCount +=1
+                    if(member.handRaised) this.raisedHands += 1;
                 });
                 break;
             case "join":
                 this.members[jmsg.participant.userId] = (jmsg.participant);
+                if(member.role !=='participantsFromThread') {
+                    this.memberCount += 1;
+                    if(this.members[jmsg.participant.userId].handRaised) 
+                        this.raisedHands += 1;
+                }
                 break;
             case "leave":
-                delete this.members[member.userId]
+                delete this.members[member.userId];
+                if(member.role !=='participantsFromThread') {
+                    this.memberCount -= 1;
+                    if(this.members[jmsg.participant.userId].handRaised) 
+                        this.raisedHands -= 1;
+                }
                 break;
             case "muted":
                 this.members[jmsg.participant].muted = true
@@ -101,12 +122,31 @@ class MSTeamsCallPage {
                 break;
             case "raisedHand":
                 this.members[jmsg.participant].handRaised = true
+                this.raisedHands += 1;
                 break;
             case "loweredHand":
                 this.members[jmsg.participant].handRaised = false
+                this.raisedHands -= 1;
                 break;
         }
-        console.log(this.members);
+
+        if(jmsg.event.startsWith("role:")) {
+            var newRole = jmsg.event.substr(5);
+            var oldRole = this.members[jmsg.participant].role;
+
+            if(oldRole === 'participantsFromThread' && newRole !== 'participantsFromThread') {
+                this.memberCount += 1;
+                if(this.members[jmsg.participant.userId].handRaised) 
+                    this.raisedHands += 1;
+            } else if(newRole === 'participantsFromThread' && oldRole !== 'participantsFromThread') {
+                this.memberCount -= 1;
+                if(this.members[jmsg.participant.userId].handRaised) 
+                    this.raisedHands -= 1;
+            }
+        }
+
+        console.log(jmsg);
+        console.log(this.raisedHands/this.memberCount);
     }
 
     waitToOpen() {
