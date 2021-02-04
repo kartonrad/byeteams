@@ -1,6 +1,6 @@
 // { const wsUrl="";
 
-var memberObserver, listObserver;
+var memberObserver, listObserver, memberEntries = [];
 
 console.log("injected with webscket")
 function eventFire(el, etype){
@@ -14,7 +14,6 @@ function eventFire(el, etype){
     }
 }
 
-//NEWNEW
 function evalRecord(record) {
     /*if(record.attributeName === "class") {
         console.log(record.target.getAttribute("class"));
@@ -72,29 +71,68 @@ function waitForSel(selector, iter=0) {
     })
 }
 
-//NEWNEW
+/**
+ * conf
+ * @param {Element} part 
+ */
+function parseParticipant(part) {
+    var dataTid = part.getAttribute("data-tid")
+
+    var arr = dataTid.split("-", 2)
+    var userName = arr[1];
+    var role = arr[0];
+
+    var organizer = part.querySelector("[data-cid=ts-roster-organizer-status]") !== null;
+    var handRaised = part.querySelector("[data-cid=roster-participant-hand-raised]") !== null;
+    var muted = part.querySelector("[data-cid=roster-participant-muted]") !== null;
+
+    var userId = participantId(part)
+
+    return {userId, userName, role, organizer, handRaised, muted}
+}
+//conf
+function participantId(part) {
+    var ariaDescribedby = part.getAttribute("aria-describedby");
+
+    var arr = ariaDescribedby.split(":")
+    return arr[arr.length-1];
+}
+
+/**
+ * @param {Element} el 
+ * @param {Element} el1
+ */
+function findCommonAnchestor(el, el1, maxDepth=0, curDepth=0) {
+    var parent = el.parentElement;
+    if(parent.contains(el1)) {
+        return parent
+    } else if (curDepth<maxDepth ||curDepth === 0) {
+        return findCommonAnchestor(parent, el1, maxDepth, curDepth+1);
+    }
+    return null;
+}
+
 if(memberObserver) memberObserver.disconnect();
+if(listObserver) listObserver.disconnect();
 
 
 var socket = new WebSocket(wsUrl)
 socket.onopen = async function main () {
     function send(data) { socket.send(JSON.stringify(data))}
 
-    //NEWNEW
-    
 
     //for live updates
     async function initiateObservers() {
         await openMembers()
         
         //TODO parse entire participant structure into initial state, handle additions/removals from the list
-        const memberEntries = document.querySelectorAll("[data-cid=roster-participant]")
-
+        memberEntries = document.querySelectorAll("[data-cid=roster-participant]")
 
         function findObserver(target) {
+            console.log(memberEntries);
             for (var i = 0; i < memberEntries.length; i++) {
                 if (memberEntries[i].contains(target)) {
-                    return memberEntries[i].getAttribute("data-tid");
+                    return participantId(memberEntries[i])
                 }
             }
             return null;
@@ -115,12 +153,52 @@ socket.onopen = async function main () {
             events.forEach((e) => console.log(e));
             events.forEach((e) => {if(e) send(e)});
         });
+
+        listObserver = new MutationObserver((records) => {
+            var events = records.map((record) => {
+                if(record.type !== "childList") return;
+
+
+                return [
+                    Array.from(record.addedNodes).map((joined) => {
+                        var joinedPart = joined.querySelector("[data-cid=roster-participant]");
+                        if(!joinedPart) return ;
+                        memberEntries.push(joinedPart);
+
+                        //start observing
+                        memberObserver.observe(joinedPart, {attributes: true, childList: true, attributeFilter: ["data-cid", "data-tid", "class"], subtree: true});
+
+                        return {event: "join", participant: parseParticipant(joinedPart)}
+                    }),
+                    Array.from(record.removedNodes).map((left)=> {
+                        var leftPart = left.querySelector("[data-cid=roster-participant]");
+                        if(!leftPart) return ;
+                        memberEntries = memberEntries.filter((mem) => !mem.isSameNode(leftPart));
+
+                        return {event: "left", participant: participantId(leftPart)}
+                    })
+                ]
+            });
+
+            //send off events
+            events.forEach((e) => console.log(e));
+            events.forEach((e) => {if(e) send(e)});
+        });
+
     }
     function feedObservers() {
-        const memberEntries = document.querySelectorAll("[data-cid=roster-participant]");
+        memberObserver.disconnect();
+        listObserver.disconnect();
+
+        memberEntries = document.querySelectorAll("[data-cid=roster-participant]");
         memberEntries.forEach((e) => memberObserver.observe(e, {attributes: true, childList: true, attributeFilter: ["data-cid", "data-tid", "class"], subtree: true}));
+
+        send({event: "fullMemberScan", list:  Array.from(memberEntries).map((e) => parseParticipant(e)) });
+
+        const memberList = findCommonAnchestor(memberEntries[0], memberEntries[1]);
+        listObserver.observe(memberList, {childList: true});
     }
-    //NEWNEW
+
 
     await initiateObservers();
     console.log(memberObserver)
@@ -133,7 +211,7 @@ socket.onopen = async function main () {
         eventFire(el, "click");
     }
 
-    function openChat() { clickLabeledButton("#chat-button", "Show");  memberObserver.disconnect(); }
+    function openChat() { clickLabeledButton("#chat-button", "Show"); }
     async function openMembers() { clickLabeledButton("#roster-button", "Show"); await waitForSel("[data-cid=roster-participant]"); }
 
     function raise() { clickLabeledButton("#raisehands-button", "Raise") }

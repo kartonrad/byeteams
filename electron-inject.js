@@ -23,7 +23,7 @@ async function main (port) {
 main(9222);
 
 class MSTeamsCallPage {
-    chat=[];
+    members=[];
     muted=false;
     handRaised=false;
     openPanel=undefined;
@@ -42,7 +42,7 @@ class MSTeamsCallPage {
         this.debugSocket.on("message", (msg) => this.recieve(msg));
         this.socketId = id;
         this.comOpen = false;
-
+        this.members = [];
         this.comSocket = new ws.Server({ port: 12400 + id})
         this.comSocket.on("connection", (socket) => {
             this.messageEvents.emit("clientOpen")
@@ -52,13 +52,17 @@ class MSTeamsCallPage {
             socket.on("message", (msg) => this.handleStateUpdate(msg, socket) )
             socket.on("close", ()=> {
                 this.comOpen = false;
+                console.log("Meeting ended unexpectedly")
                 socket.removeAllListeners("message");
             });
         });
     }
 
     async injectCode() {
-        console.log(await this.sendDb({method: "Runtime.evaluate", params: {expression: `{ const wsUrl="ws://localhost:${12400 + this.socketId}"`+payload}}));
+        var res = await this.sendDb({method: "Runtime.evaluate", params: {expression: `{ const wsUrl="ws://localhost:${12400 + this.socketId}"`+payload}});
+        try{delete res.result.result;}catch{}
+        console.log(res);
+
         console.log("waiting for client to connect");
         return new Promise((resolve) => {
             if(this.comOpen) return resolve();
@@ -73,8 +77,36 @@ class MSTeamsCallPage {
         if(jmsg.id) {
             this.recieve(msg);
         }
-        console.log(jmsg);
+        
         //STATE CHANGES
+
+        switch(jmsg.event) {
+            case "fullMemberScan":
+                this.members = {};
+                jmsg.list.forEach((member) => {
+                    this.members[member.userId] = member;
+                });
+                break;
+            case "join":
+                this.members[jmsg.participant.userId] = (jmsg.participant);
+                break;
+            case "leave":
+                delete this.members[member.userId]
+                break;
+            case "muted":
+                this.members[jmsg.participant].muted = true
+                break;
+            case "unmuted":
+                this.members[jmsg.participant].muted = false
+                break;
+            case "raisedHand":
+                this.members[jmsg.participant].handRaised = true
+                break;
+            case "loweredHand":
+                this.members[jmsg.participant].handRaised = false
+                break;
+        }
+        console.log(this.members);
     }
 
     waitToOpen() {
@@ -96,6 +128,7 @@ class MSTeamsCallPage {
     }
 
     async sendCom(data, params) {
+        console.log(data);
         var res = await this.send(this.comOpen, {command: data, params});
         console.log( res );
         return res;
@@ -106,7 +139,6 @@ class MSTeamsCallPage {
         var id = this.msgCount;
         console.log(id);
         var data2 = {...data, id: id};
-        console.log(JSON.stringify( data2 ));
         socket.send(JSON.stringify( data2 ));
         return new Promise((resolve) => {
             this.messageEvents.once(id, (e) => {
