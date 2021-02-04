@@ -9,14 +9,14 @@ const { EventEmitter } = require("events");
 async function main (port) {
     var windows = await getWindows(port);
     
-    var dbs = windows
-    .filter((w) => w.title.startsWith("Call with ") && w.type === "page" )
+    var dbs = windows.filter((w) => (w.title.startsWith("Call with ") || w.title.startsWith("Meet") || w.title.startsWith("Room")) && w.type === "page" )
     .map((json, idx) => new MSTeamsCallPage(json, idx))
     .forEach(async (cp) => {      
         await cp.waitToOpen();
         await cp.injectCode();
         console.log("lmao injected")
-        await cp.sendCom("unmute");
+        //await cp.sendCom("unmute");
+        console.log("Sucessfully wrote")
         await cp.sendCom("openMembers")
     });
 }
@@ -69,7 +69,12 @@ class MSTeamsCallPage {
     }
 
     handleStateUpdate(msg, socket) {
-        console.log(msg)
+        var jmsg = JSON.parse(msg);
+        if(jmsg.id) {
+            this.recieve(msg);
+        }
+        console.log(jmsg);
+        //STATE CHANGES
     }
 
     waitToOpen() {
@@ -90,17 +95,22 @@ class MSTeamsCallPage {
         return this.send(this.debugSocket, data);
     }
 
-    async sendCom(data) {
-        return console.log( await this.send(this.comOpen, {command: data}) );
+    async sendCom(data, params) {
+        var res = await this.send(this.comOpen, {command: data, params});
+        console.log( res );
+        return res;
     }
 
     async send(socket, data) { 
         this.msgCount+=1;
         var id = this.msgCount;
+        console.log(id);
         var data2 = {...data, id: id};
+        console.log(JSON.stringify( data2 ));
         socket.send(JSON.stringify( data2 ));
         return new Promise((resolve) => {
             this.messageEvents.once(id, (e) => {
+                
                 resolve(e);
             })
         });
