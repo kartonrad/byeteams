@@ -4,7 +4,24 @@ const fs = require ("fs");
 const payload = fs.readFileSync("./teams-payload.js");
 const { EventEmitter } = require("events");
 
+const { NotificationCenter, WindowsToaster } = require("node-notifier");
+var center;
 
+function notifyUser(msg) {
+    
+    center = new WindowsToaster({withFallback: false});
+    if(process.platform === "darwin") center = new NotificationCenter({withFallback: false});
+
+    center.notify({
+        sound: "Notification.Looping.Call4",
+        message: msg,
+        title: "LEFT THE MEETING",
+        appID: "BYETEAMS",
+        icon: "./waving.png",
+        wait: true
+    });
+}
+//notifyUser("Due to low Member Count");
 
 async function main (port) {
     var windows = await getWindows(port);
@@ -40,9 +57,10 @@ class MSTeamsCallPage {
         this.comOpen = false;
         this.members = [];
         this.raisedHands = 0;
-        this.memberCount = 0;
+        this.memberCount = 1;
         this.comSocket = new ws.Server({ port: 12400 + id});
         this.myHandRaised = false;
+        this.maxMemberCount = 0;
 
         this.debugSocket.once("open", () => {
             this.injectCode();
@@ -55,14 +73,15 @@ class MSTeamsCallPage {
             socket.on("message", (msg) => this.handleStateUpdate(msg, socket) )
             socket.on("close", ()=> {
                 this.comOpen = false;
-                console.log("Meeting ended unexpectedly")
+                console.log("Meeting ended")
                 socket.removeAllListeners("message");
             });
 
             
             console.log("lmao injected")
             await this.sendCom("openMembers")
-            await this.sendCom("unraise")
+            await this.sendCom("unraise");
+            this.sendCom("leave");
         });
     }
 
@@ -78,6 +97,10 @@ class MSTeamsCallPage {
                 resolve();
             })
         });
+    }
+
+    isInCall(role) {
+        return role ==='participantsInCall' || role === "attendeesInMeeting"
     }
 
     handleStateUpdate(msg, socket) {
@@ -97,7 +120,8 @@ class MSTeamsCallPage {
                 jmsg.list.forEach((member) => {
                     this.members[member.userId] = member;
 
-                    if(member.role !=='participantsFromThread') this.memberCount +=1
+                    console.log(this.isInCall(member.role))
+                    if(this.isInCall(member.role)) this.memberCount +=1;
                     if(member.handRaised) this.raisedHands += 1;
                 });
                 break;
@@ -106,23 +130,29 @@ class MSTeamsCallPage {
                 this.members[jmsg.participant.userId] = (jmsg.participant);
 
 
-                if(member.role !=='participantsFromThread') {
+                if(this.isInCall(member.role)) {
                     this.memberCount += 1;
                     if(member.handRaised) 
                         this.raisedHands += 1;
                 }
                 break;
             case "left":
-                var member = this.members[jmsg.participant];
-                delete this.members[jmsg.participant];
+                var member = {...this.members[jmsg.participant]};
+                
+                if(!member) return;
 
-
-                if(member.role !=='participantsFromThread') {
+                if(this.isInCall(member.role)) {
                     this.memberCount -= 1;
                     if(member.handRaised) 
                         this.raisedHands -= 1;
                 }
-                if(member.organizer) console.log("LEAVING LEAVING LEAVING")
+                if(member.organizer) {
+                    console.log("LEAVING LEAVING LEAVING");
+                    this.sendCom("leave");
+                    notifyUser("Due to Organizer leaving");
+                }
+
+                delete this.members[jmsg.participant];
                 break;
             case "muted":
                 this.members[jmsg.participant].muted = true
@@ -144,11 +174,11 @@ class MSTeamsCallPage {
             var newRole = jmsg.event.substr(5);
             var oldRole = this.members[jmsg.participant].role;
 
-            if(oldRole === 'participantsFromThread' && newRole !== 'participantsFromThread') {
+            if(!this.isInCall(oldRole) && this.isInCall(newRole)) {
                 this.memberCount += 1;
                 if(this.members[jmsg.participant.userId].handRaised) 
                     this.raisedHands += 1;
-            } else if(newRole === 'participantsFromThread' && oldRole !== 'participantsFromThread') {
+            } else if(this.isInCall(oldRole) && !this.isInCall(newRole)) {
                 this.memberCount -= 1;
                 if(this.members[jmsg.participant.userId].handRaised) 
                     this.raisedHands -= 1;
@@ -157,7 +187,7 @@ class MSTeamsCallPage {
 
         console.log(jmsg);
         console.log(this.memberCount);
-        console.log(this.raisedHands/this.memberCount);
+        console.log("RaisedHands ", this.raisedHands/this.memberCount);
 
         if (this.raisedHands/this.memberCount > 0.7 && this.myHandRaised === false){ 
             console.log("raising hand") 
@@ -168,6 +198,17 @@ class MSTeamsCallPage {
             console.log("lowering hand") 
             this.sendCom("unraise");
             this.myHandRaised = false;
+        }
+        if(this.memberCount > this.maxMemberCount) {
+            this.maxMemberCount = this.memberCount;
+        }
+
+        console.log("User Percent", this.memberCount/this.maxMemberCount );
+
+        if(this.memberCount/this.maxMemberCount < 0.34) {
+            console.log("leave due to low member presence");
+            this.sendCom("leave");
+            notifyUser("Due to low Member Count")
         }
     }
 

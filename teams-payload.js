@@ -282,12 +282,16 @@ socket.onopen = async function main () {
     function mute() { clickLabeledButton("#microphone-button", "Mute") }
     function unmute() { clickLabeledButton("#microphone-button", "Unmute") }
 
+    function leave() { 
+        var el = document.querySelector("#hangup-button-wrapper > button")
+        eventFire(el, "click");
+    }
     //NEWNEW
     
     //NEWNEW
     
 
-    const f = {openChat, openMembers, raise, unraise, mute, unmute}
+    const f = {openChat, openMembers, raise, unraise, mute, unmute, leave}
     socket.onmessage = async function msg(msge) {
         console.log(msge)
         var msg = JSON.parse(msge.data);
