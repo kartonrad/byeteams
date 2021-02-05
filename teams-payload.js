@@ -71,6 +71,65 @@ function waitForSel(selector, iter=0) {
     })
 }
 
+function FindReact(dom, traverseUp = 0) {
+    const key = Object.keys(dom).find(key=>key.startsWith("__reactInternalInstance$"));
+    const domFiber = dom[key];
+    if (domFiber == null) return null;
+
+    // react <16
+    if (domFiber._currentElement) {
+        let compFiber = domFiber._currentElement._owner;
+        for (let i = 0; i < traverseUp; i++) {
+            compFiber = compFiber._currentElement._owner;
+        }
+        return compFiber._instance;
+    }
+
+    // react 16+
+    const GetCompFiber = fiber=>{
+        //return fiber._debugOwner; // this also works, but is __DEV__ only
+        let parentFiber = fiber.return;
+        while (typeof parentFiber.type == "string") {
+            parentFiber = parentFiber.return;
+        }
+        return parentFiber;
+    };
+    let compFiber = GetCompFiber(domFiber);
+    for (let i = 0; i < traverseUp; i++) {
+        compFiber = GetCompFiber(compFiber);
+    }
+    return compFiber.stateNode;
+}
+var oldRender;
+var component;
+var firstIntercept = true;
+function intercept(element) {
+    //undo previous intercept 
+    if(component && oldRender) component.render = oldRender;
+
+    component = FindReact(element);
+    if(component) {
+        oldRender = component.render;
+        component.render = (...args) => {
+            console.log(args);
+            component.props.overscanRowCount = 100000;
+            var result = oldRender.bind(component, args)();
+            if(firstIntercept) {
+                firstIntercept=false;
+                var ref = result.ref(component);
+                try {
+                    ref.current.scrollToRow(0);
+                    ref.current.scrollToRow(1);
+                } catch(err) {}
+            }
+            return result;
+        };
+        //component.scrollToRow(0);
+        //component.scrollToRow(1);
+    }
+}
+
+
 /**
  * conf
  * @param {Element} part 
@@ -82,7 +141,7 @@ function parseParticipant(part) {
     var userName = arr[1];
     var role = arr[0];
 
-    var organizer = part.querySelector("[data-cid=ts-roster-organizer-status]") !== null;
+    var organizer = part.querySelector("[data-tid=ts-roster-organizer-status]") !== null;
     var handRaised = part.querySelector("[data-cid=roster-participant-hand-raised]") !== null;
     var muted = part.querySelector("[data-cid=roster-participant-muted]") !== null;
 
@@ -104,11 +163,13 @@ function participantId(part) {
  */
 function findCommonAnchestor(el, el1, maxDepth=0, curDepth=0) {
     var parent = el.parentElement;
+    //console.log(parent, curDepth);
     if(parent.contains(el1)) {
         return parent
-    } else if (curDepth<maxDepth ||curDepth === 0) {
+    } else if (curDepth<maxDepth ||maxDepth === 0) {
         return findCommonAnchestor(parent, el1, maxDepth, curDepth+1);
     }
+    console.log("abort", curDepth)
     return null;
 }
 
@@ -126,7 +187,7 @@ socket.onopen = async function main () {
         await openMembers()
         
         //TODO parse entire participant structure into initial state, handle additions/removals from the list
-        memberEntries = document.querySelectorAll("[data-cid=roster-participant]")
+        memberEntries = Array.from(document.querySelectorAll("[data-cid=roster-participant]"));
 
         function findObserver(target) {
             console.log(memberEntries);
@@ -182,7 +243,7 @@ socket.onopen = async function main () {
 
             //send off events
             events.forEach((e) => console.log(e));
-            events.forEach((e) => {if(e) send(e)});
+            events.flat(5).forEach((e) => {if(e) send(e)});
         });
 
     }
@@ -190,13 +251,14 @@ socket.onopen = async function main () {
         memberObserver.disconnect();
         listObserver.disconnect();
 
-        memberEntries = document.querySelectorAll("[data-cid=roster-participant]");
+        memberEntries = Array.from(document.querySelectorAll("[data-cid=roster-participant]"));
         memberEntries.forEach((e) => memberObserver.observe(e, {attributes: true, childList: true, attributeFilter: ["data-cid", "data-tid", "class"], subtree: true}));
 
         send({event: "fullMemberScan", list:  Array.from(memberEntries).map((e) => parseParticipant(e)) });
 
         const memberList = findCommonAnchestor(memberEntries[0], memberEntries[1]);
-        listObserver.observe(memberList, {childList: true});
+        intercept(memberList)
+        if(memberList) listObserver.observe(memberList, {childList: true});
     }
 
 
