@@ -285,6 +285,10 @@ socket.onopen = async function main () {
     function leave() { 
         var el = document.querySelector("#hangup-button-wrapper > button")
         eventFire(el, "click");
+        setTimeout(async () => {
+            window.close();
+            eventFire(await waitForSel("[data-tid=speedbump-leave-btn]"), "click");
+        }, 4000);
     }
     //NEWNEW
     

@@ -5,7 +5,10 @@ const payload = fs.readFileSync("./teams-payload.js");
 const { EventEmitter } = require("events");
 
 const { NotificationCenter, WindowsToaster } = require("node-notifier");
+const chalk = require("chalk");
 var center;
+
+
 
 function notifyUser(msg) {
     
@@ -24,13 +27,18 @@ function notifyUser(msg) {
 //notifyUser("Due to low Member Count");
 
 async function main (port) {
-    var windows = await getWindows(port);
+    try {
+        var windows = await getWindows(port);
+    } catch(err) {
+        return console.log("Couldnt connect to remote Debugging")
+    }
+    
     //console.log(windows);
     
     var dbs = windows.filter((w) => (w.url === "about:blank?entityType=calls") && w.type === "page" )
     .map((json, idx) => new MSTeamsCallPage(json, idx))
 }
-main(9222);
+//main(28044);
 
 class MSTeamsCallPage {
     members=[];
@@ -47,8 +55,10 @@ class MSTeamsCallPage {
     msgCount=0;
     socketId;
     myHandRaised = false;
+    waitingOnOrganzierLeave = false;
 
     constructor(debugJson, id=0) {
+        this.leaving = false;
         this.dbJson = debugJson;
         this.debugSocket = new ws(debugJson.webSocketDebuggerUrl);
         this.messageEvents = new EventEmitter();
@@ -61,6 +71,8 @@ class MSTeamsCallPage {
         this.comSocket = new ws.Server({ port: 12400 + id});
         this.myHandRaised = false;
         this.maxMemberCount = 0;
+        this.waitingOnOrganzierLeave = false;
+        this.recentLeaves = [];
 
         this.debugSocket.once("open", () => {
             this.injectCode();
@@ -73,24 +85,33 @@ class MSTeamsCallPage {
             socket.on("message", (msg) => this.handleStateUpdate(msg, socket) )
             socket.on("close", ()=> {
                 this.comOpen = false;
-                console.log("Meeting ended")
+                this.log(chalk`{red.bold Meeting ended}`, false)
                 socket.removeAllListeners("message");
+                this.destructor();
+                if(!this.leaving) {
+                    notifyUser("Kicked from Meeting");
+                }
             });
 
             
-            console.log("lmao injected")
+            this.log("lmao injected")
             await this.sendCom("openMembers")
             await this.sendCom("unraise");
-            this.sendCom("leave");
         });
+    }
+
+    destructor() {
+        this.debugSocket.close();
+        this.comSocket.close();
+        this.messageEvents.removeAllListeners();
     }
 
     async injectCode() {
         var res = await this.sendDb({method: "Runtime.evaluate", params: {expression: `{ const wsUrl="ws://localhost:${12400 + this.socketId}"`+payload}});
         try{delete res.result.result;}catch{}
-        console.log(res);
+        //console.log(res);
 
-        console.log("waiting for client to connect");
+        this.log("waiting for client to connect");
         return new Promise((resolve) => {
             if(this.comOpen) return resolve();
             this.messageEvents.once("clientOpen", () => {
@@ -101,6 +122,14 @@ class MSTeamsCallPage {
 
     isInCall(role) {
         return role ==='participantsInCall' || role === "attendeesInMeeting"
+    }
+
+    log(msg, drawer = true) {
+        console.log(chalk`${drawer?"\x1b[F\x1b[F":""}{blueBright [${this.dbJson.title}]} ${msg}`);
+        if(drawer)
+        console.log(
+chalk`{blue Members:} {grey.italic ${this.memberCount}} | {blue Most Members:}{grey.italic ${this.maxMemberCount}}
+✋ {yellow.italic ${(this.raisedHands/this.memberCount)*100}%} |  {red Left {italic ${(1-this.memberCount/this.maxMemberCount)*100}%}}`)
     }
 
     handleStateUpdate(msg, socket) {
@@ -120,10 +149,12 @@ class MSTeamsCallPage {
                 jmsg.list.forEach((member) => {
                     this.members[member.userId] = member;
 
-                    console.log(this.isInCall(member.role))
-                    if(this.isInCall(member.role)) this.memberCount +=1;
+                    if(this.isInCall(member.role)){ 
+                        this.memberCount +=1;
+                    }
                     if(member.handRaised) this.raisedHands += 1;
                 });
+                this.log("recieved member list")
                 break;
             case "join":
                 var member = jmsg.participant;
@@ -134,6 +165,8 @@ class MSTeamsCallPage {
                     this.memberCount += 1;
                     if(member.handRaised) 
                         this.raisedHands += 1;
+
+                    if(!this.recentLeaves.includes(member.userId)) this.log(chalk`{italic ${member.userName}}{red.bold ${member.organizer?", an Organizer":""}} {yellow joined} the Meeting!`);
                 }
                 break;
             case "left":
@@ -145,28 +178,64 @@ class MSTeamsCallPage {
                     this.memberCount -= 1;
                     if(member.handRaised) 
                         this.raisedHands -= 1;
+
+                    if(!this.recentLeaves.includes(member.userId)) {
+                        this.recentLeaves.push(member.userId);
+                        setTimeout( () => {
+                            this.log(chalk`{italic ${member.userName}}{red.bold ${member.organizer?", an Organizer":""}} {yellow left} the Meeting!`);
+                            this.recentLeaves = this.recentLeaves.filter((e) => e!==member.userId);
+                        }, 1000);
+                    }
                 }
                 if(member.organizer) {
-                    console.log("LEAVING LEAVING LEAVING");
-                    this.sendCom("leave");
-                    notifyUser("Due to Organizer leaving");
+                    this.log("Organizer left, waiting");
+                    if(!this.waitingOnOrganzierLeave) {
+                        this.waitingOnOrganzierLeave = true;
+                        setTimeout(() => {
+                            var noOrganizer = true;
+
+                            for (let member in this.members) {
+                                var realmember = this.members[member]
+                                if(realmember.organizer) {
+                                    noOrganizer = false;
+                                    break;
+                                }
+                            }
+
+                            if(noOrganizer) {
+                                this.leaving = true;
+                                this.sendCom("leave");
+                                this.log(chalk`{red.bold LEAVING THE MEETING - Due to Organizers leaving}`, false)
+                                if(!this.leaving) notifyUser("Due to Organizers leaving");
+                            }
+                            this.waitingOnOrganzierLeave = false;
+                        }, 20000)
+                    }
                 }
 
                 delete this.members[jmsg.participant];
                 break;
             case "muted":
-                this.members[jmsg.participant].muted = true
+                var member = {...this.members[jmsg.participant]};
+                this.members[jmsg.participant].muted = true;
+                this.log(chalk`🔈  -> {italic ${member.userName}}`)
                 break;
             case "unmuted":
-                this.members[jmsg.participant].muted = false
+                var member = {...this.members[jmsg.participant]};
+                this.members[jmsg.participant].muted = false;
+                this.log(chalk`🔊  -> {italic ${member.userName}}`)
                 break;
             case "raisedHand":
+                var member = {...this.members[jmsg.participant]};
                 this.members[jmsg.participant].handRaised = true
                 this.raisedHands += 1;
+                this.log(chalk`✋  -> {italic ${member.userName}}`)
                 break;
             case "loweredHand":
+                var member = {...this.members[jmsg.participant]};
                 this.members[jmsg.participant].handRaised = false
                 this.raisedHands -= 1;
+                this.log(chalk`{red ✋X} -> {italic ${member.userName}}`)
                 break;
         }
 
@@ -185,17 +254,13 @@ class MSTeamsCallPage {
             }
         }
 
-        console.log(jmsg);
-        console.log(this.memberCount);
-        console.log("RaisedHands ", this.raisedHands/this.memberCount);
-
         if (this.raisedHands/this.memberCount > 0.7 && this.myHandRaised === false){ 
-            console.log("raising hand") 
+            this.log("Bot raising hand") 
             this.sendCom("raise");
             this.myHandRaised = true;
         }
         if (this.raisedHands/this.memberCount < 0.7 && this.myHandRaised === true){ 
-            console.log("lowering hand") 
+            this.log("Bot lowering hand") 
             this.sendCom("unraise");
             this.myHandRaised = false;
         }
@@ -203,11 +268,12 @@ class MSTeamsCallPage {
             this.maxMemberCount = this.memberCount;
         }
 
-        console.log("User Percent", this.memberCount/this.maxMemberCount );
-
         if(this.memberCount/this.maxMemberCount < 0.34) {
-            console.log("leave due to low member presence");
+            this.leaving = true;
+            this.log(chalk`{red.bold LEAVING THE MEETING - Due to low Member Count}`, false)
             this.sendCom("leave");
+
+            if(!this.leaving)
             notifyUser("Due to low Member Count")
         }
     }
@@ -231,16 +297,18 @@ class MSTeamsCallPage {
     }
 
     async sendCom(data, params) {
-        console.log(data);
+        if(data === "leave") this.leaving = true;
+
+        //console.log(data);
         var res = await this.send(this.comOpen, {command: data, params});
-        console.log( res );
+        //console.log( res );
         return res;
     }
 
     async send(socket, data) { 
         this.msgCount+=1;
         var id = this.msgCount;
-        console.log(id);
+        //console.log(id);
         var data2 = {...data, id: id};
         socket.send(JSON.stringify( data2 ));
         return new Promise((resolve) => {
@@ -271,3 +339,5 @@ function getWindows(port) {
         req.end();
     });
 }
+
+module.exports = {getWindows, main, MSTeamsCallPage, notifyUser};

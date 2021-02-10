@@ -2,12 +2,12 @@
   "name": "byeteams",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "index2.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "byeteams": "./index.js"
+    "byeteams": "./index2.js"
   },
   "author": "",
   "license": "ISC",
