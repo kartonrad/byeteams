@@ -1,7 +1,7 @@
 const http = require("http");
 const ws = require("ws");
 const fs = require ("fs");
-const payload = fs.readFileSync("./teams-payload.js");
+const payload = fs.readFileSync(__dirname+"/teams-payload.js");
 const { EventEmitter } = require("events");
 
 const notifier = require("node-notifier");
