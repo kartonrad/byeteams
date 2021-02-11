@@ -8,14 +8,11 @@
   },
   "bin": {
     "byeteams": "./index2.js",
-    "byeteamsOld": "./index.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "chalk": "^4.1.0",
-    "jimp": "^0.16.1",
-    "node-notifier": "^9.0.0",
-    "robotjs": "^0.6.0"
+    "node-notifier": "^9.0.0"
   }
 }

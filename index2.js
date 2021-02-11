@@ -46,7 +46,7 @@ async function changeSettingsPrompt() {
         //newConfig.alarmLength = await askNumber(newConfig.alarmLength/10, `\nHow long (in secs) the alarm should play`);
         newConfig.onOrganizerLeave = await askBoolean(newConfig.onOrganizerLeave, `\nLeave when all Organizers have left? (Y/N)`);
         config = newConfig;
-        writeFileSync("./config.json", JSON.stringify(config));
+        writeFileSync(__dirname+"/config.json", JSON.stringify(config));
         printHelp()
         await changeSettingsPrompt();
     }
@@ -218,8 +218,8 @@ async function openDebugTeams(force=false) {
     exec(path+" --remote-debugging-port=36193", (err, stdout, stderr) => {
         //if(err) console.error(err);
         if (err && force) {
-            console.log(chalk`Couldn't find Microsoft Teams. Please open Teams and try again.
-Or go to ${__dirname}/config.json and fill in the Path to the Executable, {italic if you know what you're doing}`);
+            console.log(chalk`{red.bold Couldn't find Microsoft Teams. Please open Teams and try again.}
+{grey Or go to ${__dirname}/config.json and fill in the Path to the Executable, {italic if you know what you're doing}}`);
             process.exit(1)
         }
 
@@ -230,7 +230,7 @@ Or go to ${__dirname}/config.json and fill in the Path to the Executable, {itali
     
     if(force ||!config.teams_path) {
         config.teams_path = path.replace("\r", ""); 
-        writeFileSync("./config.json", JSON.stringify(config));
+        writeFileSync(__dirname+"/config.json", JSON.stringify(config));
     }
 }
 

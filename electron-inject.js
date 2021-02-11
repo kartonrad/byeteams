@@ -25,7 +25,7 @@ function notifyUser(msg) {
         message: msg,
         title: "LEFT THE MEETING",
         appID: "BYETEAMS",
-        icon: "./waving.png",
+        icon: __dirname+"/waving.png",
         wait: true,
     });
 }
@@ -242,24 +242,24 @@ chalk`{blue Members:} {grey.italic ${this.memberCount}} | {blue Most Members:}{g
             case "muted":
                 var member = {...this.members[jmsg.participant]};
                 this.members[jmsg.participant].muted = true;
-                this.log(chalk`🔈  -> {italic ${member.userName}}`)
+                this.log(chalk`muted    -> {italic ${member.userName}}`)
                 break;
             case "unmuted":
                 var member = {...this.members[jmsg.participant]};
                 this.members[jmsg.participant].muted = false;
-                this.log(chalk`🔊  -> {italic ${member.userName}}`)
+                this.log(chalk`unmuted  -> {italic ${member.userName}}`)
                 break;
             case "raisedHand":
                 var member = {...this.members[jmsg.participant]};
                 this.members[jmsg.participant].handRaised = true
                 this.raisedHands += 1;
-                this.log(chalk`✋  -> {italic ${member.userName}}`)
+                this.log(chalk`raised {yellow H} -> {italic ${member.userName}}`)
                 break;
             case "loweredHand":
                 var member = {...this.members[jmsg.participant]};
                 this.members[jmsg.participant].handRaised = false
                 this.raisedHands -= 1;
-                this.log(chalk`{red ✋X} -> {italic ${member.userName}}`)
+                this.log(chalk`{red lowered} {yellow H}-> {italic ${member.userName}}`)
                 break;
         }
 
