@@ -4,29 +4,36 @@ const fs = require ("fs");
 const payload = fs.readFileSync("./teams-payload.js");
 const { EventEmitter } = require("events");
 
-const { NotificationCenter, WindowsToaster } = require("node-notifier");
+const notifier = require("node-notifier");
 const chalk = require("chalk");
 var center;
+var managedCalls = [];
 
+var config = {
+    teams_path: "",
+    onOrganizerLeave: true,
+    memberRatio: 0.34,
+    handRatio: 0.7,
+    alarmLength: 60,
+    lastPorts: []
+}
 
 
 function notifyUser(msg) {
-    
-    center = new WindowsToaster({withFallback: false});
-    if(process.platform === "darwin") center = new NotificationCenter({withFallback: false});
-
-    center.notify({
-        sound: "Notification.Looping.Call4",
+    notifier.notify({
+        sound: process.platform==="win32" ? "Notification.Looping.Call4" : "Sosumi",
         message: msg,
         title: "LEFT THE MEETING",
         appID: "BYETEAMS",
         icon: "./waving.png",
-        wait: true
+        wait: true,
     });
 }
 //notifyUser("Due to low Member Count");
 
-async function main (port) {
+async function main (port, cnf) {
+    if(cnf) config = cnf;
+
     try {
         var windows = await getWindows(port);
     } catch(err) {
@@ -35,10 +42,26 @@ async function main (port) {
     
     //console.log(windows);
     
-    var dbs = windows.filter((w) => (w.url === "about:blank?entityType=calls") && w.type === "page" )
-    .map((json, idx) => new MSTeamsCallPage(json, idx))
+    managedCalls = windows.filter((w) => (w.url === "about:blank?entityType=calls") && w.type === "page" )
+    .map((json, idx) => new MSTeamsCallPage(json, idx));
+
+    setInterval(async () => {
+        //console.log("NUM-CALLS: ",managedCalls.length)
+        try {
+            var windows = await getWindows(port);
+        } catch(err) {
+            return;
+        }
+        var moreCalls = windows.filter((w) => (w.url === "about:blank?entityType=calls") && w.type === "page" && !managedCalls.some((call) => call.dbJson.id === w.id) )
+        .map((json, idx) => new MSTeamsCallPage(json, idx+(managedCalls.length)));
+        managedCalls = managedCalls.concat(moreCalls);
+    }, 5000)
 }
 //main(28044);
+
+function rmvCall(id) {
+    delete managedCalls[id];
+}
 
 class MSTeamsCallPage {
     members=[];
@@ -89,7 +112,7 @@ class MSTeamsCallPage {
                 socket.removeAllListeners("message");
                 this.destructor();
                 if(!this.leaving) {
-                    notifyUser("Kicked from Meeting");
+                    notifyUser("Kicked from Meeting\n["+this.dbJson.title+"]");
                 }
             });
 
@@ -104,6 +127,7 @@ class MSTeamsCallPage {
         this.debugSocket.close();
         this.comSocket.close();
         this.messageEvents.removeAllListeners();
+        rmvCall(this.socketId);
     }
 
     async injectCode() {
@@ -187,7 +211,7 @@ chalk`{blue Members:} {grey.italic ${this.memberCount}} | {blue Most Members:}{g
                         }, 1000);
                     }
                 }
-                if(member.organizer) {
+                if(member.organizer && config.onOrganizerLeave) {
                     this.log("Organizer left, waiting");
                     if(!this.waitingOnOrganzierLeave) {
                         this.waitingOnOrganzierLeave = true;
@@ -206,7 +230,7 @@ chalk`{blue Members:} {grey.italic ${this.memberCount}} | {blue Most Members:}{g
                                 this.leaving = true;
                                 this.sendCom("leave");
                                 this.log(chalk`{red.bold LEAVING THE MEETING - Due to Organizers leaving}`, false)
-                                if(!this.leaving) notifyUser("Due to Organizers leaving");
+                                if(!this.leaving) notifyUser("Due to Organizers leaving\n["+this.dbJson.title+"]");
                             }
                             this.waitingOnOrganzierLeave = false;
                         }, 20000)
@@ -254,12 +278,12 @@ chalk`{blue Members:} {grey.italic ${this.memberCount}} | {blue Most Members:}{g
             }
         }
 
-        if (this.raisedHands/this.memberCount > 0.7 && this.myHandRaised === false){ 
+        if (this.raisedHands/this.memberCount > config.handRatio && this.myHandRaised === false){ 
             this.log("Bot raising hand") 
             this.sendCom("raise");
             this.myHandRaised = true;
         }
-        if (this.raisedHands/this.memberCount < 0.7 && this.myHandRaised === true){ 
+        if (this.raisedHands/this.memberCount < config.handRatio && this.myHandRaised === true){ 
             this.log("Bot lowering hand") 
             this.sendCom("unraise");
             this.myHandRaised = false;
@@ -268,13 +292,13 @@ chalk`{blue Members:} {grey.italic ${this.memberCount}} | {blue Most Members:}{g
             this.maxMemberCount = this.memberCount;
         }
 
-        if(this.memberCount/this.maxMemberCount < 0.34) {
+        if(this.memberCount/this.maxMemberCount < config.memberRatio) {
             this.leaving = true;
             this.log(chalk`{red.bold LEAVING THE MEETING - Due to low Member Count}`, false)
             this.sendCom("leave");
 
             if(!this.leaving)
-            notifyUser("Due to low Member Count")
+            notifyUser("Due to low Member Count\n["+this.dbJson.title+"]")
         }
     }
 

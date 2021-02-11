@@ -267,14 +267,14 @@ socket.onopen = async function main () {
     feedObservers()
 
 
-    function clickLabeledButton(sel, inc) {
-        var el = document.querySelector(sel);
+    async function clickLabeledButton(sel, inc) {
+        var el = await waitForSel(sel);
         if(el.getAttribute("aria-label").includes(inc))
         eventFire(el, "click");
     }
 
     function openChat() { clickLabeledButton("#chat-button", "Show"); }
-    async function openMembers() { clickLabeledButton("#roster-button", "Show"); await waitForSel("[data-cid=roster-participant]"); }
+    async function openMembers() { await clickLabeledButton("#roster-button", "Show"); await waitForSel("[data-cid=roster-participant]"); }
 
     function raise() { clickLabeledButton("#raisehands-button", "Raise") }
     function unraise() { clickLabeledButton("#raisehands-button", "Lower") }

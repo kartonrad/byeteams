@@ -22,7 +22,7 @@ function printHelp() {
         2. ${config.handRatio<1 ?chalk`When {yellow.italic ${100*config.handRatio}%} of Users raise their hand (✋), also raise hand (✋)`: chalk`Will {italic.red NEVER} raise it's hand`}
         3. ${config.memberRatio>0 ?chalk`When only {yellow.italic ${100*config.memberRatio}%} of Users are left in the Meeting, {red.bold leave} the Meeting`: chalk`{grey ---}`}
         ${config.onOrganizerLeave ? chalk`4. When all {yellow.italic Organizers} leave, wait {yellow.italic 20s} and {red.bold leave} the Meeting` : ""}
-    3. After leaving, send a Desktop Notification and play a sound for {yellow.italic ${config.alarmLength}s}
+    3. After leaving, send a Desktop Notification!
     4. Will repeat the same for every Call that starts (automatic redirects etc.)
     
     {blueBright Do you wish to change these Settings? (Y/N)}
@@ -41,7 +41,7 @@ async function changeSettingsPrompt() {
 
         newConfig.handRatio = await askHandHandRaised();
         newConfig.memberRatio = await askMemberRatio();
-        newConfig.alarmLength = await askNumber(newConfig.alarmLength/10, `\nHow long (in secs) the alarm should play`);
+        //newConfig.alarmLength = await askNumber(newConfig.alarmLength/10, `\nHow long (in secs) the alarm should play`);
         newConfig.onOrganizerLeave = await askBoolean(newConfig.onOrganizerLeave, `\nLeave when all Organizers have left? (Y/N)`);
         config = newConfig;
         writeFileSync("./config.json", JSON.stringify(config));
@@ -163,6 +163,10 @@ async function attemptConnect(openedDebugTeams=false) {
         await sleep(5000)
         return await attemptConnect(true);
     }
+
+    if(failure && openedDebugTeams) {
+        console.log("Could not open Teams in Debug Mode. Please open Teams, so we can grab the Path")
+    }
 }
 
 function sleep(ms) {
@@ -218,14 +222,14 @@ Or go to ${__dirname}/config.json and fill in the Path to the Executable, {itali
         }
 
         if(err&&!force) {
-            attemptConnect(runningPath);
-        }
-
-        if(!err && !config.teams_path) {
-            config.teams_path = path;
-            writeFileSync("./config.json", JSON.stringify(config));
+            openDebugTeams(runningPath);
         }
     });
+    
+    if(force ||!config.teams_path) {
+        config.teams_path = path.replace("\r", ""); 
+        writeFileSync("./config.json", JSON.stringify(config));
+    }
 }
 
 function killTeams() {
