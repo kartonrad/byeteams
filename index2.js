@@ -15,7 +15,7 @@ function printHelp() {
         chalk`
     {green ----------HELP----------}
     {bold ByeTeams®} will:
-    1. Reopen Teams in {yellow Debug Mode} (ends all running Meetings)
+    1. Reopen Teams in {yellow Debug Mode} (may close already running Meetings)
     2. Then for every open Call 
         1. Open and watch the Call Participants
         {red -> Do NOT scroll on or close the Participant list!!!}
