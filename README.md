@@ -7,11 +7,11 @@ a small, way to colored cli script to leave teams after a certain time
 2. run `npm install -g DRKSLV/byeteams` in a terminal to download/install the script
 3. to execute the script run `byeteams <...>` or if that doesnt work, `npx byeteams <...>`
 
-### Usage and Method
+## Usage and Method
 Interactive Configuration Process if you enter Y, don't need to explain it i think
 ![grafik](https://user-images.githubusercontent.com/56208328/107588588-4fd59b00-6c04-11eb-8a40-97ce65598487.png)
 
-#OLD DOCUMENTATION
+# OLD DOCUMENTATION
 run with `byeteamsOld <...>`
 ### note!!!!!!
 When using the 'sleep' option, Windows will enter Hibernation Mode.
