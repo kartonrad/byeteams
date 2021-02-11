@@ -8,7 +8,7 @@
   },
   "bin": {
     "byeteams": "./index2.js",
-    "byeteamsOld": "./index2.js"
+    "byeteamsOld": "./index.js"
   },
   "author": "",
   "license": "ISC",
