@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "chalk": "^4.1.0",
-    "node-notifier": "^9.0.0"
+    "node-notifier": "^9.0.0",
+    "ws": "^7.4.3"
   }
 }
